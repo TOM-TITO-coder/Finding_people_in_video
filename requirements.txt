@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+tf-keras
+deepface
+mtcnn
+scikit-learn
+numpy
+matplotlib
+python-multipart
