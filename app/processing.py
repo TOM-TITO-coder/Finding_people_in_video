@@ -59,20 +59,46 @@ def extract_feature(image):
         return None
 
 # Face Matching
-def match_faces(target_embedding, detected_faces, threshold=0.5):
+def match_faces(detected_faces, target_embedding, knowns_faces,  threshold=0.5):
     matched_frames = []
     
     for face in detected_faces:
         face_embedding = extract_feature(face["image"])
-        similarity = cosine_similarity([target_embedding], [face_embedding])[0][0]
-        if similarity > threshold:
-            matched_frames.append(face["frame_idx"])
+        if face_embedding is None:
+            continue
+        
+        # Compare with target image's embedding
+        target_similarity = cosine_similarity([face_embedding], [target_embedding])[0][0]
+        
+        if target_similarity > threshold:
+            matched_frames.append({
+                "frame_idx": face["frame_idx"],
+                "box": face["box"],
+                # "name": "Target",  # or "Target" if the face matches the target
+                # "age": "Unknown",  # or any appropriate value
+            })
+        
+        # Compare with known faces database
+        for known_face in knowns_faces:
+            db_similarity = cosine_similarity([face_embedding], [known_face["embedding"]])[0][0]
+            if db_similarity > threshold:
+                matched_frames.append({
+                    "frame_idx": face["frame_idx"],
+                    "box": face["box"],
+                    "name": known_face["name"],  # Fetch the correct name from the database
+                    "age": known_face["age"],  # Fetch the correct age from the database
+                })
+                break
             
     return matched_frames
 
 # Calculate the timestamps
-def frames_to_timestamps(matched_frame, frame_rate):
-    return [frame_idx / frame_rate for frame_idx in matched_frame]
+def frames_to_timestamps(matched_frames, frame_rate):
+    if isinstance(matched_frames, list):
+        frame_indices = [frame['frame_idx'] for frame in matched_frames]
+        return [frame_idx / frame_rate for frame_idx in frame_indices]
+    else:
+        raise ValueError("Expected matched_frames to be a list of frame indices.")
 
 def save_highlighted_video(video_path, detected_faces, output_path):
     cap = cv2.VideoCapture(video_path)
@@ -88,11 +114,28 @@ def save_highlighted_video(video_path, detected_faces, output_path):
         if not ret:
             break
         
-        for face in detected_faces:
-            if face["frame_idx"] == frame_count:
-                x, y, w, h = face["box"]
-                cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        current_frame_faces = [face for face in detected_faces if face["frame_idx"] == frame_count]
+        
+        for face in current_frame_faces:
+            x, y, w, h = face["box"]
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
             
+            # Add semi-transparent rectangle for text background
+            name = face.get("name")
+            age = face.get("age")
+            text = f"{name} ({age})"
+            (text_width, text_height), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)
+            cv2.rectangle(frame, (x, y - text_height - 10), (x + text_width, y), (0, 0, 0), -1)  # Black background
+            
+            # Overlay text
+            cv2.putText(
+                frame, 
+                text, 
+                (x, y - 5),  # Adjusted y for better positioning
+                cv2.FONT_HERSHEY_SIMPLEX, 
+                0.9, (0, 255, 0), 2
+            )
+
         out.write(frame)
         frame_count += 1
     
