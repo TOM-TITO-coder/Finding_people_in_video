@@ -7,3 +7,5 @@ scikit-learn
 numpy
 matplotlib
 python-multipart
+jinja2
+ffmpeg-python

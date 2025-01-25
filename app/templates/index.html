@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Face Detection App</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .loader {
+            border-top-color: #3498db;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-6">
+        <h1 class="text-3xl font-bold mb-6 text-center">Face Detection Application</h1>
+        
+        <div class="grid md:grid-cols-2 gap-6">
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-4">Process Video</h2>
+                <form id="videoForm" class="space-y-4">
+                    <div>
+                        <label class="block mb-2">Video File</label>
+                        <input type="file" name="video_file" accept="video/*" required 
+                               class="w-full p-2 border rounded">
+                    </div>
+                    <div>
+                        <label class="block mb-2">Target Image</label>
+                        <input type="file" name="target_image" accept="image/*" required 
+                               class="w-full p-2 border rounded">
+                    </div>
+                    <button type="submit" id="processButton"
+                            class="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600">
+                        Process Video
+                    </button>
+                    
+                    <!-- Loading Spinner -->
+                    <div id="loadingSpinner" class="hidden flex justify-center items-center mt-4">
+                        <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12"></div>
+                    </div>
+                </form>
+                
+                <div id="resultContainer" class="mt-4">
+                    <video id="resultVideo" controls class="hidden w-full">
+                        <source id="videoSource" type="video/mp4">
+                    </video>
+                    
+                    <div id="timestampsContainer" class="mt-4 hidden">
+                        <h3 class="text-lg font-semibold mb-2">Matched Faces Timestamps</h3>
+                        <ul id="timestampsList" class="list-disc pl-5"></ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('videoForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            // Get references to key elements
+            const formData = new FormData(e.target);
+            const processButton = document.getElementById('processButton');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+            const videoElement = document.getElementById('resultVideo');
+            const timestampsContainer = document.getElementById('timestampsContainer');
+            const timestampsList = document.getElementById('timestampsList');
+
+            // Reset previous results
+            videoElement.classList.add('hidden');
+            timestampsContainer.classList.add('hidden');
+            timestampsList.innerHTML = '';
+
+            // Disable button and show spinner
+            processButton.disabled = true;
+            processButton.textContent = 'Processing...';
+            loadingSpinner.classList.remove('hidden');
+
+            try {
+                const response = await fetch('/process/', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error('Processing failed');
+                }
+
+                const data = await response.json();
+
+                // Update video source and show it
+                videoElement.src = data.output_video_url;
+                videoElement.classList.remove('hidden');
+                videoElement.load(); // Ensure the video is reloaded
+
+                // Wait for the video to be ready to play
+                videoElement.addEventListener('canplay', () => {
+                    videoElement.play(); // Optionally autoplay the result video
+                });
+
+                // Display timestamps
+                if (data.timestamps && data.timestamps.length > 0) {
+                    timestampsContainer.classList.remove('hidden');
+                    data.timestamps.forEach((timestamp, index) => {
+                        const li = document.createElement('li');
+                        li.textContent = `Matched Face ${index + 1}: ${timestamp.toFixed(2)} seconds`;
+                        timestampsList.appendChild(li);
+                    });
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Video processing failed');
+            } finally {
+                // Reset button and hide spinner
+                processButton.disabled = false;
+                processButton.textContent = 'Process Video';
+                loadingSpinner.classList.add('hidden');
+            }
+        });
+    </script>
+    
+</body>
+</html>

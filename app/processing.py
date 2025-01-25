@@ -67,28 +67,24 @@ def match_faces(detected_faces, target_embedding, knowns_faces,  threshold=0.5):
         if face_embedding is None:
             continue
         
-        # Compare with target image's embedding
+        # Check if the face matches the target embedding
         target_similarity = cosine_similarity([face_embedding], [target_embedding])[0][0]
         
         if target_similarity > threshold:
-            matched_frames.append({
+            match_info = {
                 "frame_idx": face["frame_idx"],
-                "box": face["box"],
-                # "name": "Target",  # or "Target" if the face matches the target
-                # "age": "Unknown",  # or any appropriate value
-            })
-        
-        # Compare with known faces database
-        for known_face in knowns_faces:
-            db_similarity = cosine_similarity([face_embedding], [known_face["embedding"]])[0][0]
-            if db_similarity > threshold:
-                matched_frames.append({
-                    "frame_idx": face["frame_idx"],
-                    "box": face["box"],
-                    "name": known_face["name"],  # Fetch the correct name from the database
-                    "age": known_face["age"],  # Fetch the correct age from the database
-                })
-                break
+                "box": face["box"]
+            }
+            
+            # Check if the same face matches any known face in the database
+            for known_face in knowns_faces:
+                db_similarity = cosine_similarity([face_embedding], [known_face["embedding"]])[0][0]
+                if db_similarity > threshold:
+                    match_info["name"] = known_face["name"]
+                    match_info["age"] = known_face["age"]
+                    break
+            
+            matched_frames.append(match_info)
             
     return matched_frames
 
@@ -101,43 +97,53 @@ def frames_to_timestamps(matched_frames, frame_rate):
         raise ValueError("Expected matched_frames to be a list of frame indices.")
 
 def save_highlighted_video(video_path, detected_faces, output_path):
+    # Open the input video file
     cap = cv2.VideoCapture(video_path)
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     
+    # Initialize the video writer for the output video
     out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
     frame_count = 0
     
+    # Process each frame
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
         
-        current_frame_faces = [face for face in detected_faces if face["frame_idx"] == frame_count]
+        # Get faces detected in the current frame
+        current_frame_faces = [face for face in detected_faces if face.get("frame_idx") == frame_count]
         
         for face in current_frame_faces:
+            # Extract the bounding box for the face
             x, y, w, h = face["box"]
             cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
             
-            # Add semi-transparent rectangle for text background
+            # Check if the face has name and age to display
             name = face.get("name")
             age = face.get("age")
-            text = f"{name} ({age})"
-            (text_width, text_height), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)
-            cv2.rectangle(frame, (x, y - text_height - 10), (x + text_width, y), (0, 0, 0), -1)  # Black background
-            
-            # Overlay text
-            cv2.putText(
-                frame, 
-                text, 
-                (x, y - 5),  # Adjusted y for better positioning
-                cv2.FONT_HERSHEY_SIMPLEX, 
-                0.9, (0, 255, 0), 2
-            )
+            if name and age and isinstance(name, str) and (isinstance(age, int) or isinstance(age, str)):
+                try:
+                    # Clean age if needed
+                    age = int(age) if isinstance(age, str) and age.isdigit() else age
+                    
+                    # Text formatting
+                    text = f"{name} ({age})"
+                    (text_width, text_height), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)
+                    cv2.rectangle(frame, (x, y - text_height - 10), (x + text_width, y), (0, 0, 0), -1)
+                    cv2.putText(frame, text, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+                
+                except ValueError as e:
+                    print(f"Error formatting text for face: {e}")
 
         out.write(frame)
         frame_count += 1
     
     cap.release()
     out.release()
+    
+
+
+
