@@ -2,11 +2,11 @@ from fastapi import FastAPI, File, HTTPException, UploadFile, Form, Request, log
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, StreamingResponse
 import os
 import cv2
-from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import logging.config
 import logging
+from typing import List
 
 # from app
 from app.config import LOGGING_CONFIG, FACE_DETECTION_THRESHOLD
@@ -43,59 +43,68 @@ async def serve_index(request: Request):
 @app.post("/process/", response_model=ProcessingResponse)
 async def process_video(
     video_file: UploadFile = File(...), 
-    target_image: UploadFile = File(...)
+    target_images: List[UploadFile] = File(...)
 ):
     try:
-        # Save uploaded files
+        # Save uploaded video
         video_path = os.path.join(UPLOAD_DIR, video_file.filename)
-        target_path = os.path.join(UPLOAD_DIR, target_image.filename)
-        
         with open(video_path, 'wb') as video_out:
             video_out.write(await video_file.read())
-        with open(target_path, "wb") as target_out:
-            target_out.write(await target_image.read())
-            
-        # Extract embedding for the target image
-        target_img = cv2.imread(target_path)
-        target_embedding = extract_feature(target_img)
-        
-        if not target_embedding:
-            return JSONResponse(status_code=400, content={"error": "Could not extract target embedding."})
-            
-        # Processing
+
+        # Extract embeddings for all target images
+        target_embeddings = {}
+        for target_image in target_images:
+            target_path = os.path.join(UPLOAD_DIR, target_image.filename)
+            with open(target_path, "wb") as target_out:
+                target_out.write(await target_image.read())
+
+            target_img = cv2.imread(target_path)
+            target_embedding = extract_feature(target_img)
+
+            if target_embedding is not None:
+                target_embeddings[target_image.filename] = target_embedding
+
+        if not target_embeddings:
+            return JSONResponse(status_code=400, content={"error": "No valid embeddings found for target images."})
+
+        # Extract frames from the video
         frames, frame_rate = extract_frames(video_path, frame_interval=10)
         detected_faces = detect_faces(frames)
-        
+
         if not detected_faces:
             return JSONResponse(status_code=404, content={"error": "No faces detected in the video"})
-        
+
         # Load known faces from the database
-        knowns_faces = load_database()
-        
-        
-        # Match faces in the video with the target image's embedding
-        matched_frames = match_faces(
-            detected_faces, 
-            target_embedding, 
-            knowns_faces
-        )
-        
-        timestamps = frames_to_timestamps(matched_frames, frame_rate)
-        
-        # Save highlighted video
+        known_faces = load_database()
+
+        # Match detected faces with all target embeddings
+        matched_frames_dict = {target: [] for target in target_embeddings}
+        for target_name, embedding in target_embeddings.items():
+            matched_frames_dict[target_name] = match_faces(detected_faces, embedding, known_faces)
+
+        # Convert matched frames into timestamps for each target
+        timestamps_dict = {
+            target: frames_to_timestamps(matched_frames, frame_rate)
+            for target, matched_frames in matched_frames_dict.items()
+        }
+
+        # Save highlighted video with matches
         output_filename = f"output_{os.path.splitext(video_file.filename)[0]}.mp4"
         output_path = os.path.join(OUTPUT_DIR, output_filename)
-        save_highlighted_video(video_path, matched_frames, output_path)
-        
-        return {
-            "output_video_url": f"/static/{output_filename}",
-            "timestamps": timestamps,
-            "matched_faces": matched_frames
-        }
-        
+        all_matched_frames = [frame for frames in matched_frames_dict.values() for frame in frames]
+        save_highlighted_video(video_path, all_matched_frames, output_path)
+
+        # ✅ Ensure the response matches ProcessingResponse model
+        return ProcessingResponse(
+            output_video_url=f"/static/{output_filename}",
+            timestamps=timestamps_dict,
+            matched_faces=matched_frames_dict
+        )
+
     except Exception as e:
         logger.error(f"Video processing error: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @app.post("/upload_to_database")

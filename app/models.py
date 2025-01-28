@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 class FaceEntry(BaseModel):
     name: str = Field(..., min_length=2, max_length=50)
@@ -12,5 +12,5 @@ class ProcessingRequest(BaseModel):
 
 class ProcessingResponse(BaseModel):
     output_video_url: str
-    timestamps: List[float]
-    matched_faces: Optional[List[dict]] = None
+    timestamps: Dict[str, List[float]]
+    matched_faces: Dict[str, List[Dict[str, Any]]]
