@@ -15,7 +15,8 @@ from app.utils import save_image, load_database, save_to_database
 from app.models import FaceEntry, ProcessingRequest, ProcessingResponse
 
 # Configure logging
-logging.config.dictConfig(LOGGING_CONFIG)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Face Detection Web App",
@@ -134,7 +135,7 @@ async def upload_to_database(
         entry = FaceEntry(
             name=name,
             age=age,
-            embedding=embedding.tolist()
+            embedding=embedding
         )
         save_to_database(entry.dict())
         
