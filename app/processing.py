@@ -104,7 +104,8 @@ def save_highlighted_video(video_path, detected_faces, output_path):
     fps = int(cap.get(cv2.CAP_PROP_FPS))
     
     # Initialize the video writer for the output video
-    out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'mp4v'), fps, (frame_width, frame_height))
+    #out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'avc1'), fps, (frame_width, frame_height))
+    out = cv2.VideoWriter(output_path, cv2.VideoWriter_fourcc(*'H264'), fps, (frame_width, frame_height))
     frame_count = 0
     
     # Process each frame

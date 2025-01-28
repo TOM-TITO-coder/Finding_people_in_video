@@ -8,6 +8,7 @@
         .loader {
             border-top-color: #3498db;
             animation: spin 1s linear infinite;
+            border-top-color: transparent;
         }
         @keyframes spin {
             0% { transform: rotate(0deg); }
@@ -16,42 +17,55 @@
     </style>
 </head>
 <body class="bg-gray-100">
-    <div class="container mx-auto p-6">
-        <h1 class="text-3xl font-bold mb-6 text-center">Finding People in Video Application</h1>
-        
-        <div class="grid md:grid-cols-2 gap-6">
-            <div class="bg-white p-6 rounded-lg shadow-md">
-                <h2 class="text-xl font-semibold mb-4">Process Video</h2>
-                <form id="videoForm" class="space-y-4">
+    <div class="container mx-auto p-8">
+        <h1 class="text-4xl font-extrabold mb-8 text-center text-gray-800">Find People in Video</h1>
+    
+        <div class="grid md:grid-cols-2 gap-8">
+            <!-- Left Card: Video Processing -->
+            <div class="bg-white p-8 rounded-xl shadow-lg">
+                <h2 class="text-2xl font-bold mb-6 text-gray-700">Process Video</h2>
+                <form id="videoForm" class="space-y-6">
+                    <!-- Video File Input -->
                     <div>
-                        <label class="block mb-2">Video File</label>
-                        <input type="file" name="video_file" accept="video/*" required 
-                               class="w-full p-2 border rounded">
+                        <label class="block text-sm font-medium text-gray-600 mb-2">Video File</label>
+                        <input type="file" name="video_file" accept="video/*" required
+                               class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">
                     </div>
+    
+                    <!-- Multiple Target Images Input -->
                     <div>
-                        <label class="block mb-2">Target Image</label>
-                        <input type="file" name="target_image" accept="image/*" required 
-                               class="w-full p-2 border rounded">
+                        <label class="block text-sm font-medium text-gray-600 mb-2">Target Images</label>
+                        <input type="file" name="target_images" accept="image/*" multiple required
+                               class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400">
                     </div>
+    
+                    <!-- Process Button -->
                     <button type="submit" id="processButton"
-                            class="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600">
+                            class="w-full bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-4 focus:ring-blue-300">
                         Process Video
                     </button>
-                    
+    
                     <!-- Loading Spinner -->
-                    <div id="loadingSpinner" class="hidden flex justify-center items-center mt-4">
-                        <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12"></div>
+                    <div id="loadingSpinner" class="hidden flex justify-center items-center mt-6">
+                        <div class="animate-spin rounded-full h-10 w-10 border-t-4 border-blue-500 border-solid"></div>
                     </div>
                 </form>
-                
-                <div id="resultContainer" class="mt-4">
-                    <video id="resultVideo" controls class="hidden w-full">
+            </div>
+    
+            <!-- Right Card: Results -->
+            <div class="bg-white p-8 rounded-xl shadow-lg">
+                <h2 class="text-2xl font-bold mb-6 text-gray-700">Results</h2>
+    
+                <div id="resultContainer">
+                    <!-- Processed Video Output -->
+                    <video id="resultVideo" controls class="hidden w-full rounded-lg border border-gray-300">
                         <source id="videoSource" type="video/mp4">
                     </video>
-                    
-                    <div id="timestampsContainer" class="mt-4 hidden">
-                        <h3 class="text-lg font-semibold mb-2">Matched Faces Timestamps</h3>
-                        <ul id="timestampsList" class="list-disc pl-5"></ul>
+    
+                    <!-- Timestamps List -->
+                    <div id="timestampsContainer" class="mt-6 hidden">
+                        <h3 class="text-lg font-semibold mb-3 text-gray-700">Matched Faces Timestamps</h3>
+                        <div id="timestampsList" class="text-gray-600 space-y-1"></div>
                     </div>
                 </div>
             </div>
@@ -95,20 +109,17 @@
                 // Update video source and show it
                 videoElement.src = data.output_video_url;
                 videoElement.classList.remove('hidden');
-                videoElement.load(); // Ensure the video is reloaded
+                videoElement.load();
 
-                // Wait for the video to be ready to play
-                videoElement.addEventListener('canplay', () => {
-                    videoElement.play(); // Optionally autoplay the result video
-                });
-
-                // Display timestamps
-                if (data.timestamps && data.timestamps.length > 0) {
+                // Display timestamps grouped by target image
+                if (data.timestamps) {
                     timestampsContainer.classList.remove('hidden');
-                    data.timestamps.forEach((timestamp, index) => {
-                        const li = document.createElement('li');
-                        li.textContent = `Matched Face ${index + 1}: ${timestamp.toFixed(2)} seconds`;
-                        timestampsList.appendChild(li);
+                    timestampsList.innerHTML = '';
+                    
+                    Object.entries(data.timestamps).forEach(([target, timestamps]) => {
+                        let section = document.createElement('div');
+                        section.innerHTML = `<h4 class='text-md font-semibold'>${target}</h4><ul class='list-disc pl-5'>${timestamps.map(ts => `<li>${ts.toFixed(2)}s</li>`).join('')}</ul>`;
+                        timestampsList.appendChild(section);
                     });
                 }
             } catch (error) {
